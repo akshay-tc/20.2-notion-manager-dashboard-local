@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -17,7 +17,6 @@ export const metadata: Metadata = {
   description: "Installable dashboard experience for keeping Notion organized.",
   applicationName: "Notion Manager Dashboard",
   manifest: "/manifest.webmanifest",
-  themeColor: "#0f172a",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -33,6 +32,10 @@ export const metadata: Metadata = {
     ],
     apple: "/icons/icon-192.png",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0f172a",
 };
 
 export default function RootLayout({
