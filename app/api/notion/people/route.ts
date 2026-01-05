@@ -2,7 +2,6 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import {
   findAnyTitle,
-  mapStatus as normalizeStatus,
   findPropCaseInsensitive,
   numberValue,
   relationNames,
@@ -273,12 +272,12 @@ export async function GET() {
           (props["Due"] as { date?: { start?: string } })?.date?.start ||
           (props["Deadline"] as { date?: { start?: string } })?.date?.start ||
           undefined;
-        const status = normalizeStatus(
+        const status =
           (mapping?.status && selectName(props[mapping.status])) ||
-            selectName(props["Status"]) ||
-            (props["Status"] as { status?: { name?: string } })?.status?.name ||
-            (props["Status"] as { select?: { name?: string } })?.select?.name,
-        );
+          selectName(props["Status"]) ||
+          (props["Status"] as { status?: { name?: string } })?.status?.name ||
+          (props["Status"] as { select?: { name?: string } })?.select?.name ||
+          "Unknown";
         const taskId =
           (mapping?.taskId && textFromRich(props[mapping.taskId])) ||
           textFromRich(props["Task ID"]) ||

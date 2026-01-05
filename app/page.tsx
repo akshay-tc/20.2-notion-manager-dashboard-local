@@ -22,7 +22,7 @@ type Task = {
   title: string;
   project: string;
   space: string;
-  status: TaskStatus;
+  status: string;
   due?: string;
   statusDetails?: string;
   sprint?: string;
@@ -40,30 +40,23 @@ type Person = {
   tasks: Task[];
 };
 
-const statusStyles: Record<
-  TaskStatus,
-  { label: string; dot: string; text: string }
-> = {
-  in_progress: {
-    label: "In progress",
-    dot: "bg-sky-400",
-    text: "text-sky-200",
-  },
-  blocked: {
-    label: "Blocked",
-    dot: "bg-rose-500",
-    text: "text-rose-200",
-  },
-  done: {
-    label: "Done",
-    dot: "bg-emerald-400",
-    text: "text-emerald-200",
-  },
-  queued: {
-    label: "Queued",
-    dot: "bg-amber-400",
-    text: "text-amber-200",
-  },
+type StatusStyle = { label: string; dot: string; text: string };
+const getStatusStyle = (status: string): StatusStyle => {
+  const value = (status || "").toLowerCase();
+  if (value.includes("block")) {
+    return { label: status || "Blocked", dot: "bg-rose-500", text: "text-rose-200" };
+  }
+  if (value.includes("progress")) {
+    return {
+      label: status || "In progress",
+      dot: "bg-sky-400",
+      text: "text-sky-200",
+    };
+  }
+  if (value.includes("done") || value.includes("complete")) {
+    return { label: status || "Done", dot: "bg-emerald-400", text: "text-emerald-200" };
+  }
+  return { label: status || "Open", dot: "bg-amber-400", text: "text-amber-200" };
 };
 
 export default function Home() {
@@ -109,7 +102,6 @@ export default function Home() {
 
   const aggregates = useMemo(() => {
     const allTasks = people.flatMap((p) => p.tasks);
-    console.log(allTasks)
     const spaces = new Set<string>();
     const databases = new Set<string>();
     people.forEach((p) => {
@@ -130,6 +122,33 @@ export default function Home() {
     };
   }, [people]);
 
+  const workspaceBreakdown = useMemo(() => {
+    if (!selectedPerson) return [];
+    const map: Record<
+      string,
+      { count: number; estimate: number; tasks: Task[] }
+    > = {};
+    selectedPerson.tasks.forEach((t) => {
+      const key = t.space || t.project || "Workspace";
+      const parsed =
+        typeof t.plannedEstimate === "number"
+          ? t.plannedEstimate
+          : Number.parseFloat(String(t.plannedEstimate ?? ""));
+      if (!map[key]) {
+        map[key] = { count: 0, estimate: 0, tasks: [] };
+      }
+      map[key].count += 1;
+      if (!Number.isNaN(parsed)) {
+        map[key].estimate += parsed;
+      }
+      map[key].tasks.push(t);
+    });
+    return Object.entries(map).map(([name, info]) => ({
+      name,
+      ...info,
+    }));
+  }, [selectedPerson]);
+
   const handleDisconnect = () => {
     setConnected(false);
   };
@@ -141,29 +160,18 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
-      <main className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-10">
+      <main className="mx-auto flex w-full max-w-screen-2xl flex-col gap-10 px-12 py-14">
         <motion.header
           className="flex flex-wrap items-start justify-between gap-4 rounded-3xl border border-white/10 bg-white/5 px-6 py-5 shadow-xl shadow-slate-900/40 backdrop-blur"
           initial={fadeIn.initial}
           animate={fadeIn.animate}
         >
           <div>
-            <p className="text-sm text-slate-300">Workload cockpit</p>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-semibold tracking-tight text-white">
-                Merged Notion view across every workspace
-              </h1>
-              <motion.span
-                className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-semibold text-emerald-200"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1, transition: { delay: 0.1 } }}
-              >
-                Live
-              </motion.span>
-            </div>
-            <p className="text-xs text-slate-400">
-              Connect via OAuth or integration key, merge projects/tasks/sprints, and
-              drill into any teammate instantly.
+            <h1 className="text-2xl font-semibold tracking-tight text-white">
+              Notion workload dashboard
+            </h1>
+            <p className="text-sm text-slate-300">
+              One concise view of tasks and people across all connected workspaces.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -404,10 +412,119 @@ export default function Home() {
                       </div>
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-[1.2fr_1fr]">
+                    <div className="space-y-3">
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 to-slate-950 p-4 shadow-inner shadow-slate-900/50">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                            <FolderKanban className="h-4 w-4 text-sky-300" />
+                            Workspaces & databases
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {selectedPerson.spaces.map((space) => (
+                              <span
+                                key={space}
+                                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200"
+                              >
+                                {space}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="mt-3 space-y-1 text-xs text-slate-300">
+                            {selectedPerson.databases.map((db) => (
+                              <div
+                                key={db}
+                                className="flex items-center gap-2 rounded-lg border border-white/5 bg-white/5 px-3 py-2"
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" />
+                                <span className="text-slate-200">{db}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-md shadow-slate-900/40">
+                          <div className="mb-2 flex items-center justify-between text-xs text-slate-200">
+                            <span>Status breakdown</span>
+                            <span className="rounded-full border border-white/10 bg-white/10 px-2 py-1 text-[11px] font-semibold text-emerald-200">
+                              {selectedPerson.tasks.length} tasks
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-slate-300">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                              Health check
+                            </div>
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                            {["Assigned", "Working", "Blocked", "Done"].map((label) => {
+                              const count = selectedPerson.tasks.filter((t) =>
+                                t.status.toLowerCase().includes(label.toLowerCase()),
+                              ).length;
+                              const color =
+                                label === "Blocked"
+                                  ? "text-rose-200"
+                                  : label === "Done"
+                                    ? "text-emerald-200"
+                                    : label === "Working"
+                                      ? "text-sky-200"
+                                      : "text-amber-200";
+                              return (
+                                <div
+                                  key={label}
+                                  className="rounded-xl border border-white/5 bg-white/5 p-3"
+                                >
+                                  <p className="text-[11px] text-slate-400">{label}</p>
+                                  <p className={`text-lg font-semibold ${color}`}>{count}</p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-md shadow-slate-900/40">
+                          <div className="flex items-center justify-between text-[11px] text-slate-200">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 className="h-3.5 w-3.5 text-sky-300" />
+                              <span className="font-semibold text-white">Workspace summary</span>
+                            </div>
+                            <span className="rounded-full border border-white/10 bg-white/10 px-2 py-1 text-[10px] font-semibold text-slate-200">
+                              {selectedPerson.tasks.length} tasks •{" "}
+                              {workspaceBreakdown.reduce((acc, w) => acc + w.estimate, 0) || "0"}{" "}
+                              {workspaceBreakdown.reduce((acc, w) => acc + w.estimate, 0) === 1 ? "hour" : "hours"} estimate
+                            </span>
+                          </div>
+                          <div className="mt-3 space-y-2 text-[11px] text-slate-200">
+                            {workspaceBreakdown.map((ws) => (
+                              <div
+                                key={ws.name}
+                                className="rounded-xl border border-white/10 bg-white/5 p-3 shadow-inner shadow-slate-900/40"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <p className="text-[12px] font-semibold text-white truncate pr-2">
+                                    {ws.name}
+                                  </p>
+                                  <span className="rounded-full border border-white/10 bg-white/10 px-1.5 py-0.5 text-[9px] text-slate-200 shrink-0">
+                                    {ws.count} tasks
+                                  </span>
+                                </div>
+                                <div className="mt-2 h-1.5 rounded-full bg-white/5">
+                                  <div
+                                    className="h-1.5 rounded-full bg-gradient-to-r from-sky-400 to-indigo-400"
+                                    style={{
+                                      width: `${Math.min(100, (ws.count / Math.max(1, selectedPerson.tasks.length)) * 100)}%`,
+                                    }}
+                                  />
+                                </div>
+                                <p className="mt-2 text-[10px] text-slate-300">
+                                  Estimates: {ws.estimate || "0"}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="space-y-2">
                         {selectedPerson.tasks.map((task, idx) => {
-                          const style = statusStyles[task.status];
+                          const style = getStatusStyle(task.status);
                           return (
                             <motion.div
                               key={task.id}
@@ -446,10 +563,10 @@ export default function Home() {
                                           Sprint: {task.sprint}
                                         </span>
                                       ) : null}
-                                    {typeof task.plannedEstimate !== "undefined" ? (
-                                      <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">
-                                        Est: {task.plannedEstimate}
-                                      </span>
+                                      {typeof task.plannedEstimate !== "undefined" ? (
+                                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">
+                                          Est: {task.plannedEstimate}
+                                        </span>
                                       ) : (
                                         <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-slate-300">
                                           Est: Not added
@@ -479,79 +596,6 @@ export default function Home() {
                             filters.
                           </div>
                         ) : null}
-                      </div>
-
-                      <div className="space-y-3">
-                        <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 to-slate-950 p-4 shadow-inner shadow-slate-900/50">
-                          <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                            <FolderKanban className="h-4 w-4 text-sky-300" />
-                            Workspaces & databases
-                          </div>
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {selectedPerson.spaces.map((space) => (
-                              <span
-                                key={space}
-                                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200"
-                              >
-                                {space}
-                              </span>
-                            ))}
-                          </div>
-                          <div className="mt-3 space-y-1 text-xs text-slate-300">
-                            {selectedPerson.databases.map((db) => (
-                              <div
-                                key={db}
-                                className="flex items-center gap-2 rounded-lg border border-white/5 bg-white/5 px-3 py-2"
-                              >
-                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" />
-                                <span className="text-slate-200">{db}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-md shadow-slate-900/40">
-                          <div className="flex items-center justify-between text-xs text-slate-300">
-                            <div className="flex items-center gap-2">
-                              <CheckCircle2 className="h-4 w-4 text-emerald-300" />
-                              Health check
-                            </div>
-                            <button className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium text-slate-200 ring-1 ring-white/10 transition hover:bg-white/10">
-                              <Settings className="h-3.5 w-3.5" />
-                              Filters
-                            </button>
-                          </div>
-                          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                            <div className="rounded-xl border border-white/5 bg-white/5 p-3">
-                              <p className="text-[11px] text-slate-400">Blocked</p>
-                              <p className="text-lg font-semibold text-rose-200">
-                                {selectedPerson.tasks.filter((t) => t.status === "blocked").length}
-                              </p>
-                            </div>
-                            <div className="rounded-xl border border-white/5 bg-white/5 p-3">
-                              <p className="text-[11px] text-slate-400">In progress</p>
-                              <p className="text-lg font-semibold text-sky-200">
-                                {selectedPerson.tasks.filter((t) => t.status === "in_progress").length}
-                              </p>
-                            </div>
-                            <div className="rounded-xl border border-white/5 bg-white/5 p-3">
-                              <p className="text-[11px] text-slate-400">Queued</p>
-                              <p className="text-lg font-semibold text-amber-200">
-                                {selectedPerson.tasks.filter((t) => t.status === "queued").length}
-                              </p>
-                            </div>
-                            <div className="rounded-xl border border-white/5 bg-white/5 p-3">
-                              <p className="text-[11px] text-slate-400">Done</p>
-                              <p className="text-lg font-semibold text-emerald-200">
-                                {selectedPerson.tasks.filter((t) => t.status === "done").length}
-                              </p>
-                            </div>
-                          </div>
-                          <p className="mt-3 text-[11px] text-slate-400">
-                            Snapshot merges every connected workspace so managers see one
-                            view of workload across spaces.
-                          </p>
-                        </div>
                       </div>
                     </div>
                   </motion.div>
