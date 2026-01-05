@@ -13,15 +13,13 @@ import { readMappings } from "@/app/lib/property-mapping";
 
 export const runtime = "nodejs";
 
-type TaskStatus = "in_progress" | "blocked" | "done" | "queued";
-
 type Task = {
   id: string;
   taskId?: string;
   title: string;
   project: string;
   space: string;
-  status: TaskStatus;
+  status: string;
   due?: string;
   statusDetails?: string;
   sprint?: string;
