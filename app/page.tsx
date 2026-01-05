@@ -59,6 +59,27 @@ const getStatusStyle = (status: string): StatusStyle => {
   return { label: status || "Open", dot: "bg-amber-400", text: "text-amber-200" };
 };
 
+const classifyStatus = (status: string): "blocked" | "in_progress" | "done" | "open" => {
+  const value = (status || "").toLowerCase();
+  if (value.includes("block")) return "blocked";
+  if (
+    value.includes("progress") ||
+    value.includes("working") ||
+    value.includes("doing")
+  )
+    return "in_progress";
+  if (
+    value.includes("done") ||
+    value.includes("complete") ||
+    value.includes("closed") ||
+    value.includes("shipped") ||
+    value.includes("resolved") ||
+    value.includes("finished")
+  )
+    return "done";
+  return "open";
+};
+
 export default function Home() {
   const [people, setPeople] = useState<Person[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -104,21 +125,24 @@ export default function Home() {
     const allTasks = people.flatMap((p) => p.tasks);
     const spaces = new Set<string>();
     const databases = new Set<string>();
+    const counts = { blocked: 0, in_progress: 0, done: 0, open: 0 };
     people.forEach((p) => {
       p.spaces.forEach((s) => spaces.add(s));
       p.databases.forEach((d) => databases.add(d));
     });
-    const blocked = allTasks.filter((t) => t.status === "blocked").length;
-    const inProgress = allTasks.filter((t) => t.status === "in_progress").length;
-    const done = allTasks.filter((t) => t.status === "done").length;
+    allTasks.forEach((t) => {
+      const key = classifyStatus(t.status);
+      counts[key] += 1;
+    });
     return {
       totalPeople: people.length,
       totalTasks: allTasks.length,
       spaces: spaces.size,
       databases: databases.size,
-      blocked,
-      inProgress,
-      done,
+      blocked: counts.blocked,
+      inProgress: counts.in_progress,
+      done: counts.done,
+      open: counts.open,
     };
   }, [people]);
 
@@ -216,12 +240,12 @@ export default function Home() {
             {
               title: "Active workload",
               value: aggregates.totalTasks,
-              sub: `${aggregates.inProgress} in progress • ${aggregates.blocked} blocked`,
+              sub: `${aggregates.inProgress} working • ${aggregates.blocked} blocked • ${aggregates.open} assigned`,
             },
             {
               title: "Shipped",
               value: aggregates.done,
-              sub: "Completed across all spaces",
+              sub: `${aggregates.done} done across all workspaces`,
             },
           ].map((card, idx) => (
             <motion.div
